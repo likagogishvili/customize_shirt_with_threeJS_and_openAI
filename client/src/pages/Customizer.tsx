@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useSnapshot } from "valtio";
 
@@ -6,35 +6,24 @@ import state from "../store";
 import { reader } from "../config/helpers";
 import { EditorTabs, FilterTabs, DecalTypes } from "../config/constants";
 import { fadeAnimation, slideAnimation } from "../config/motion";
-import {
-  AlPicker,
-  ColorPicker,
-  CustomButton,
-  FilePicker,
-  Tab,
-} from "../components";
+import { ColorPicker, CustomButton, FilePicker, Tab } from "../components";
+import AIPicker from "../components/AlPicker";
 
-interface AppState {
-  intro: boolean;
-  color: string;
-  isLogoTexture: boolean;
-  isFullTexture: boolean;
-  logoDecal: string | null; // Adjusted type to allow null
-  fullDecal: string | null; // Adjusted type to allow null
-}
-
-function Customizer() {
+const Customizer = () => {
   const snap = useSnapshot(state);
-  const [file, setFile] = useState<File | null>(null);
+
+  const [file, setFile] = useState("");
+
   const [prompt, setPrompt] = useState("");
-  const [activeEditorTab, setActiveEditorTab] = useState("");
   const [generatingImg, setGeneratingImg] = useState(false);
 
+  const [activeEditorTab, setActiveEditorTab] = useState("");
   const [activeFilterTab, setActiveFilterTab] = useState({
     logoShirt: true,
     stylishShirt: false,
   });
 
+  // show tab content depending on the activeTab
   const generateTabContent = () => {
     switch (activeEditorTab) {
       case "colorpicker":
@@ -43,7 +32,7 @@ function Customizer() {
         return <FilePicker file={file} setFile={setFile} readFile={readFile} />;
       case "aipicker":
         return (
-          <AlPicker
+          <AIPicker
             prompt={prompt}
             setPrompt={setPrompt}
             generatingImg={generatingImg}
@@ -54,7 +43,35 @@ function Customizer() {
         return null;
     }
   };
-  const handleDecals = (type: string, result: any) => {
+
+  const handleSubmit = async (type: any) => {
+    if (!prompt) return alert("Please enter a prompt");
+
+    try {
+      setGeneratingImg(true);
+
+      const response = await fetch("http://localhost:8080/api/v1/dalle", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt,
+        }),
+      });
+
+      const data = await response.json();
+
+      handleDecals(type, `data:image/png;base64,${data.photo}`);
+    } catch (error) {
+      alert(error);
+    } finally {
+      setGeneratingImg(false);
+      setActiveEditorTab("");
+    }
+  };
+
+  const handleDecals = (type: any, result: any) => {
     // @ts-ignore
     const decalType = DecalTypes[type];
     // @ts-ignore
@@ -78,44 +95,22 @@ function Customizer() {
         state.isFullTexture = false;
         break;
     }
-    setActiveFilterTab((prevState) => {
+
+    // after setting the state, activeFilterTab is updated
+
+    setActiveFilterTab((prevState: any) => {
       return {
         ...prevState,
-        // @ts-ignore
         [tabName]: !prevState[tabName],
       };
     });
   };
 
   const readFile = (type: string) => {
-    reader(file).then((result: any) => {
+    reader(file).then((result) => {
       handleDecals(type, result);
       setActiveEditorTab("");
     });
-  };
-
-  const handleSubmit = async (type: any) => {
-    if (!prompt) return alert("Please enter a prompt");
-    try {
-      setGeneratingImg(true);
-
-      const response = await fetch("http://localhost:8080/api/v1/dalle", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt,
-        }),
-      });
-      const data = await response.json();
-      handleDecals(type, `data:image/png;base64,${data.photo}`);
-    } catch (error) {
-      alert(error);
-    } finally {
-      setGeneratingImg(false);
-      setActiveEditorTab("");
-    }
   };
 
   return (
@@ -130,20 +125,19 @@ function Customizer() {
             <div className="flex items-center min-h-screen">
               <div className="editortabs-container tabs">
                 {EditorTabs.map((tab) => (
+                  // @ts-ignore
                   <Tab
                     key={tab.name}
                     tab={tab}
-                    isFilterTab
-                    isActiveTab=""
-                    handleClick={() => {
-                      setActiveEditorTab(tab.name);
-                    }}
+                    handleClick={() => setActiveEditorTab(tab.name)}
                   />
                 ))}
+
                 {generateTabContent()}
               </div>
             </div>
           </motion.div>
+
           <motion.div
             className="absolute z-10 top-5 right-5"
             {...fadeAnimation}
@@ -155,6 +149,7 @@ function Customizer() {
               customStyles="w-fit px-4 py-2.5 font-bold text-sm"
             />
           </motion.div>
+
           <motion.div
             className="filtertabs-container"
             {...slideAnimation("up")}
@@ -166,9 +161,7 @@ function Customizer() {
                 isFilterTab
                 // @ts-ignore
                 isActiveTab={activeFilterTab[tab.name]}
-                handleClick={() => {
-                  handleActiveFilterTab(tab.name);
-                }}
+                handleClick={() => handleActiveFilterTab(tab.name)}
               />
             ))}
           </motion.div>
@@ -176,6 +169,6 @@ function Customizer() {
       )}
     </AnimatePresence>
   );
-}
+};
 
 export default Customizer;
