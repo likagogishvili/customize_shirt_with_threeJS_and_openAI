@@ -8,7 +8,7 @@ interface TabProps {
     icon: string;
   };
   isFilterTab: boolean;
-  isActiveTab: boolean;
+  isActiveTab: string;
   handleClick: () => void;
 }
 
